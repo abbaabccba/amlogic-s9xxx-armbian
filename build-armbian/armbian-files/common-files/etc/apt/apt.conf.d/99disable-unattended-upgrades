@@ -1,0 +1,2 @@
+// Do not install package upgrades from APT's periodic jobs.
+APT::Periodic::Unattended-Upgrade "0";
