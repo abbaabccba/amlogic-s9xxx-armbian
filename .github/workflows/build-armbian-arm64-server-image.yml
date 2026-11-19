@@ -367,7 +367,7 @@ jobs:
 
   build:
     needs: setup
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     if: ${{ github.event.repository.owner.id == github.event.sender.id }}
     permissions:
       contents: write
@@ -443,17 +443,18 @@ jobs:
         working-directory: /builder
         if: ${{ steps.down.outputs.status == 'success' && !cancelled() }}
         run: |
-          # Enable QEMU emulation for ARM cross-compilation
-          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes 2>/dev/null || true
-
           # Set the board name for the base Armbian image
           config_board="${{ inputs.config_board }}"
           [[ -z "${config_board}" ]] && config_board="odroidn2"
 
           # Compile options reference: https://docs.armbian.com/Developer-Guide_Build-Options
           cd build/
+          desktop_options=(BUILD_DESKTOP=no)
+          if [[ "${{ inputs.armbian_edition }}" == "desktop" ]]; then
+              desktop_options=(BUILD_DESKTOP=yes DESKTOP_ENVIRONMENT=xfce DESKTOP_TIER=minimal)
+          fi
               ./compile.sh RELEASE=${{ matrix.release }} BOARD=${config_board} BRANCH=current BUILD_MINIMAL=no \
-                           BUILD_ONLY=default HOST=armbian BUILD_DESKTOP=no EXPERT=yes KERNEL_CONFIGURE=no \
+                           BUILD_ONLY=default HOST=armbian "${desktop_options[@]}" EXPERT=yes KERNEL_CONFIGURE=no \
                            COMPRESS_OUTPUTIMAGE="sha" SHARE_LOG=yes
 
           echo "status=success" >> ${GITHUB_OUTPUT}
@@ -488,7 +489,7 @@ jobs:
           gh_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Rebuild Armbian for target boards
-        uses: ophub/amlogic-s9xxx-armbian@main
+        uses: ./
         if: ${{ steps.clean.outputs.status == 'success' && !cancelled() }}
         with:
           build_target: armbian
@@ -499,6 +500,7 @@ jobs:
           kernel_repo: ${{ inputs.kernel_repo }}
           kernel_usage: ${{ inputs.kernel_usage }}
           armbian_fstype: ${{ inputs.armbian_fstype }}
+          armbian_size: ${{ inputs.armbian_edition == 'desktop' && '512/8192' || '512/3000' }}
           builder_name: ${{ inputs.builder_name }}
 
       - name: Upload rebuilt images to Release
